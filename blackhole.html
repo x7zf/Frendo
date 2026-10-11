@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friends?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03040b;
+    --violet: #7c5cff;
+    --pink: #ff4d9d;
+    --cyan: #22d3ee;
+    --S: clamp(120px, 21vmin, 220px);   /* black hole size */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: #fff;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ========== STATIC BACKGROUND (nothing moves) ========== */
+  #bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    transform-origin: 50% 50%;
+    transition: transform 3.8s cubic-bezier(.65, 0, .95, .55), opacity 3.8s ease-in, filter 3.8s ease-in;
+  }
+  #bg.sucked { transform: scale(.02) rotate(160deg); opacity: 0; filter: blur(8px); }
+  #bg > * { position: absolute; pointer-events: none; }
+
+  .base {
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124, 92, 255, .22), transparent 70%),
+      radial-gradient(ellipse 70% 50% at 50% 100%, rgba(255, 77, 157, .14), transparent 70%),
+      var(--bg);
+  }
+  .aurora { inset: 0; overflow: hidden; }
+  .aurora i { position: absolute; border-radius: 50%; filter: blur(110px); mix-blend-mode: screen; opacity: .45; }
+  .aurora i:nth-child(1) { width: 52vmax; height: 52vmax; background: var(--violet); top: -22vmax; left: -14vmax; }
+  .aurora i:nth-child(2) { width: 44vmax; height: 44vmax; background: var(--pink); bottom: -22vmax; right: -12vmax; opacity: .34; }
+  .aurora i:nth-child(3) { width: 36vmax; height: 36vmax; background: var(--cyan); top: 30%; left: 55%; opacity: .22; }
+
+  .grid-wrap {
+    left: 0; right: 0; bottom: 0;
+    height: 52vh;
+    overflow: hidden;
+    perspective: 420px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 55%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 55%);
+    opacity: .45;
+  }
+  .grid {
+    position: absolute;
+    left: -100%; right: -100%;
+    top: 0;
+    height: 380px;
+    transform: rotateX(70deg);
+    transform-origin: top center;
+    background-image:
+      linear-gradient(rgba(124, 92, 255, .75) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, .55) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .rings { left: 50%; top: 50%; width: 0; height: 0; }
+  .ring { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+  .ring::after {
+    content: "";
+    position: absolute;
+    top: -4px; left: 50%;
+    width: 8px; height: 8px;
+    margin-left: -4px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 14px 3px var(--cyan);
+  }
+  .r1 { width: min(46vmin, 480px);   height: min(46vmin, 480px);   border: 1px dashed rgba(255,255,255,.10); }
+  .r2 { width: min(72vmin, 760px);   height: min(72vmin, 760px);   border: 1px solid rgba(255,255,255,.06); transform: translate(-50%, -50%) rotate(130deg); }
+  .r2::after { box-shadow: 0 0 14px 3px var(--pink); }
+  .r3 { width: min(100vmin, 1050px); height: min(100vmin, 1050px); border: 1px dotted rgba(255,255,255,.09); transform: translate(-50%, -50%) rotate(250deg); }
+  .r3::after { box-shadow: 0 0 14px 3px var(--violet); }
+
+  .vignette { inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .65) 100%); }
+  .grain {
+    inset: 0;
+    opacity: .07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  canvas#fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+
+  /* ========== CONTENT ========== */
+  main {
+    position: relative;
+    z-index: 3;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3.4rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  h1 {
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    font-size: clamp(2.3rem, 7vw, 5.2rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -.035em;
+    max-width: 14ch;
+    text-shadow: 0 0 34px rgba(124, 92, 255, .45);
+  }
+  h1 .word { display: inline-block; white-space: nowrap; }
+  h1 .ch { display: inline-block; }
+
+  .buttons {
+    display: flex;
+    gap: 1.2rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  button {
+    position: relative;
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    color: #fff;
+    height: 58px;
+    min-width: 150px;
+    padding: 0 2.4rem;
+    border-radius: 18px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: box-shadow .3s ease, filter .3s ease;
+  }
+
+  #no {
+    background:
+      linear-gradient(rgba(14, 12, 34, .55), rgba(14, 12, 34, .55)) padding-box,
+      linear-gradient(135deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, .06) 55%, rgba(255, 255, 255, .25)) border-box;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .08);
+  }
+  #no:hover { box-shadow: 0 12px 40px -10px rgba(124, 92, 255, .6), inset 0 1px 0 rgba(255, 255, 255, .15); }
+
+  #yes {
+    background:
+      linear-gradient(135deg, #8a6bff 0%, #ff4d9d 100%) padding-box,
+      linear-gradient(135deg, rgba(255,255,255,.7), rgba(255,255,255,.1)) border-box;
+    box-shadow:
+      0 14px 44px -10px rgba(124, 92, 255, .85),
+      0 0 0 1px rgba(255, 255, 255, .06),
+      inset 0 1px 0 rgba(255, 255, 255, .45);
+  }
+  #yes:hover {
+    filter: brightness(1.12);
+    box-shadow:
+      0 16px 54px -8px rgba(255, 77, 157, .85),
+      0 0 0 1px rgba(255, 255, 255, .1),
+      inset 0 1px 0 rgba(255, 255, 255, .55);
+  }
+
+  /* while the black hole is eating things */
+  body.going main { pointer-events: none; }
+  body.going button { transition: none; }
+
+  /* ========== THE BLACK HOLE ========== */
+  #flash {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, .85), rgba(180, 160, 255, .35) 40%, transparent 70%);
+  }
+  #flash.go { animation: flash 1.3s ease-out; }
+  @keyframes flash { 0% { opacity: 0; } 22% { opacity: .55; } 100% { opacity: 0; } }
+
+  #bh {
+    position: fixed;
+    left: 50%; top: 50%;
+    width: var(--S); height: var(--S);
+    margin: calc(var(--S) / -2) 0 0 calc(var(--S) / -2);
+    z-index: 6;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0) rotate(-120deg);
+    transition: transform 1.8s cubic-bezier(.16, .9, .24, 1), opacity .5s ease;
+  }
+  #bh.on { opacity: 1; transform: none; }
+  #bh.ready { pointer-events: auto; cursor: pointer; }
+
+  .bh-glow {
+    position: absolute;
+    inset: -130%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124, 92, 255, .38), rgba(255, 77, 157, .13) 38%, transparent 64%);
+    animation: pulse 3.2s ease-in-out infinite alternate;
+  }
+  @keyframes pulse { from { opacity: .65; transform: scale(.94); } to { opacity: 1; transform: scale(1.06); } }
+
+  .disk-wrap {
+    position: absolute;
+    inset: -92%;
+    transform: rotate(-14deg) scaleY(.27);
+  }
+  .disk-wrap.front { clip-path: inset(50% 0 0 0); }
+  .disk {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      rgba(255, 240, 250, .95), rgba(255, 110, 190, .85), rgba(124, 92, 255, .7),
+      rgba(34, 211, 238, .6), rgba(255, 110, 190, .85), rgba(255, 240, 250, .95));
+    -webkit-mask-image: radial-gradient(circle closest-side, transparent 31%, rgba(0,0,0,.95) 35%, rgba(0,0,0,.55) 62%, transparent 100%);
+            mask-image: radial-gradient(circle closest-side, transparent 31%, rgba(0,0,0,.95) 35%, rgba(0,0,0,.55) 62%, transparent 100%);
+    filter: blur(1.5px);
+    animation: spin 3.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .core {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #000;
+    box-shadow:
+      0 0 28px 5px rgba(255, 130, 195, .6),
+      0 0 90px 26px rgba(124, 92, 255, .45),
+      inset 0 0 30px #000;
+  }
+  .lens {
+    position: absolute;
+    inset: -3%;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 225, 240, .85);
+    box-shadow: 0 0 18px rgba(255, 160, 220, .9), inset 0 0 18px rgba(255, 160, 220, .35);
+    filter: blur(.5px);
+  }
+
+  /* ========== VIDEO OVERLAY (No button) ========== */
+  #rick {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: #03030a;
+  }
+  #rick.show { display: flex; }
+  .frame {
+    position: relative;
+    flex-shrink: 0;
+    width: min(94vw, 960px, calc(88vh * 16 / 9));
+    border-radius: 22px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 0 80px rgba(124, 92, 255, .5);
+  }
+  .frame::before { content: ""; display: block; padding-top: 56.25%; }
+  .frame video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: 0;
+    display: block;
+    object-fit: contain;
+    background: #000;
+  }
+
+  @media (max-width: 520px) {
+    .buttons { gap: .8rem; }
+    button { min-width: 120px; padding: 0 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bg">
+  <div class="base"></div>
+  <div class="aurora"><i></i><i></i><i></i></div>
+  <div class="grid-wrap"><div class="grid"></div></div>
+  <div class="rings"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div>
+  <div class="vignette"></div>
+  <div class="grain"></div>
+</div>
+<canvas id="fx"></canvas>
+
+<main>
+  <h1 id="title">Do you wanna be my friend again?</h1>
+  <div class="buttons">
+    <button id="yes" type="button">Yes</button>
+    <button id="no" type="button">No</button>
+  </div>
+</main>
+
+<div id="flash"></div>
+<div id="bh">
+  <div class="bh-glow"></div>
+  <div class="disk-wrap back"><div class="disk"></div></div>
+  <div class="core"></div>
+  <div class="lens"></div>
+  <div class="disk-wrap front"><div class="disk"></div></div>
+</div>
+
+<div id="rick">
+  <div class="frame" id="frame"><video id="clip" controls playsinline preload="auto"></video></div>
+</div>
+
+<script>
+/* ============================================================
+   EDIT THIS: the file name(s) of your video (must be in the same
+   folder as this page in your GitHub repo). Upload a .webm and/or
+   an .mp4; the browser picks whichever it can play.
+   ============================================================ */
+const VIDEO_FILES = ["video.webm", "video.mp4"];
+</script>
+
+<script>
+(() => {
+  const yes = document.getElementById("yes");
+  const no = document.getElementById("no");
+  const h1 = document.getElementById("title");
+  const canvas = document.getElementById("fx");
+  const ctx = canvas.getContext("2d");
+  const bgEl = document.getElementById("bg");
+  const bh = document.getElementById("bh");
+  const flash = document.getElementById("flash");
+
+  /* ---------- split the title into letters (colored like a gradient) ---------- */
+  const stops = [[255,255,255],[201,188,255],[255,156,203],[139,233,253],[255,255,255]];
+  function colorAt(t) {
+    const seg = (stops.length - 1) * t;
+    const i = Math.min(stops.length - 2, Math.floor(seg));
+    const f = seg - i, a = stops[i], b = stops[i + 1];
+    return "rgb(" + [0, 1, 2].map(k => Math.round(a[k] + (b[k] - a[k]) * f)).join(",") + ")";
+  }
+  const text = h1.textContent.trim();
+  h1.setAttribute("aria-label", text);
+  h1.textContent = "";
+  const letters = [];
+  const total = text.replace(/\s/g, "").length;
+  let n = 0;
+  text.split(" ").forEach((word, wi, arr) => {
+    const w = document.createElement("span");
+    w.className = "word";
+    w.setAttribute("aria-hidden", "true");
+    [...word].forEach(ch => {
+      const s = document.createElement("span");
+      s.className = "ch";
+      s.textContent = ch;
+      s.style.color = colorAt(n / Math.max(total - 1, 1));
+      n++;
+      w.appendChild(s);
+      letters.push(s);
+    });
+    h1.appendChild(w);
+    if (wi < arr.length - 1) h1.appendChild(document.createTextNode(" "));
+  });
+
+  /* ---------- static starfield ---------- */
+  let W, H, dpr, stars = [];
+  const colors = ["255,255,255", "201,188,255", "255,156,203", "139,233,253"];
+  let going = false;
+
+  function makeStars() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const count = Math.min(480, Math.floor((W * H) / 4200));
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.4 + .35,
+      a: Math.random() * .6 + .25,
+      c: colors[Math.floor(Math.random() * colors.length)]
+    }));
+    drawStatic();
+  }
+  function dot(x, y, r, a, c, glow) {
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(" + c + "," + a + ")";
+    if (glow) { ctx.shadowColor = "rgba(" + c + ",.9)"; ctx.shadowBlur = 8; }
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    if (glow) ctx.shadowBlur = 0;
+  }
+  function drawStatic() {
+    ctx.clearRect(0, 0, W, H);
+    for (const s of stars) dot(s.x, s.y, s.r, s.a, s.c, s.r > 1.3);
+  }
+  window.addEventListener("resize", () => { if (!going) makeStars(); });
+  makeStars();
+
+  /* ---------- Yes => black hole ---------- */
+  yes.addEventListener("click", start);
+
+  function start() {
+    if (going) return;
+    going = true;
+    document.body.classList.add("going");
+
+    const C = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const maxD = Math.hypot(C.x, C.y);
+    const t0 = performance.now();
+
+    flash.classList.add("go");
+    bh.classList.add("on");
+    setTimeout(() => bgEl.classList.add("sucked"), 1500);
+
+    // page elements (letters + buttons) get pulled in and stretched
+    const items = [];
+    function addEl(el, dur) {
+      const r = el.getBoundingClientRect();
+      const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+      const dx = x0 - C.x, dy = y0 - C.y;
+      const r0 = Math.max(Math.hypot(dx, dy), 1);
+      el.style.willChange = "transform";
+      items.push({
+        el, x0, y0, r0,
+        a0: Math.atan2(dy, dx),
+        delay: 1100 + (r0 / maxD) * 1500 + Math.random() * 260,
+        dur: dur * (.85 + Math.random() * .4),
+        spin: Math.PI * (1.8 + Math.random() * 1.2),
+        rot: (Math.random() < .5 ? -1 : 1) * (200 + Math.random() * 260)
+      });
+    }
+    letters.forEach(l => addEl(l, 1900));
+    addEl(yes, 2100);
+    addEl(no, 2100);
+
+    // stars get pulled in as streaks
+    for (const s of stars) {
+      const dx = s.x - C.x, dy = s.y - C.y;
+      s.r0 = Math.max(Math.hypot(dx, dy), 1);
+      s.a0 = Math.atan2(dy, dx);
+      s.delay = 1000 + (s.r0 / maxD) * 1800 + Math.random() * 300;
+      s.dur = 1500 + Math.random() * 900;
+      s.spin = Math.PI * (1.4 + Math.random() * 1.2);
+      s.tx = s.x; s.ty = s.y;
+      s.done = false;
+    }
+
+    function frame(now) {
+      const t = now - t0;
+      let alive = 0;
+
+      // stars
+      ctx.clearRect(0, 0, W, H);
+      ctx.lineCap = "round";
+      for (const s of stars) {
+        if (s.done) continue;
+        alive++;
+        const p = (t - s.delay) / s.dur;
+        if (p <= 0) { dot(s.x, s.y, s.r, s.a, s.c, s.r > 1.3); continue; }
+        if (p >= 1) { s.done = true; continue; }
+        const e = Math.pow(p, 2.2);
+        const r = s.r0 * (1 - e);
+        const ang = s.a0 + e * s.spin;
+        const x = C.x + Math.cos(ang) * r, y = C.y + Math.sin(ang) * r;
+        s.tx += (x - s.tx) * .22;
+        s.ty += (y - s.ty) * .22;
+        ctx.strokeStyle = "rgba(" + s.c + "," + (s.a * (1 - p * .55) + .15) + ")";
+        ctx.lineWidth = s.r * (1 - p * .5) + .4;
+        ctx.beginPath();
+        ctx.moveTo(s.tx, s.ty);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+
+      // letters + buttons
+      for (const it of items) {
+        if (it.done) continue;
+        alive++;
+        const p = (t - it.delay) / it.dur;
+        if (p <= 0) continue;
+        if (p >= 1) {
+          it.done = true;
+          it.el.style.visibility = "hidden";
+          continue;
+        }
+        const e = Math.pow(p, 2.4);
+        const r = it.r0 * (1 - e);
+        const ang = it.a0 + e * it.spin;
+        const tx = C.x + Math.cos(ang) * r - it.x0;
+        const ty = C.y + Math.sin(ang) * r - it.y0;
+        const sc = Math.max(.001, 1 - Math.pow(p, 1.5));
+        const stretch = 1 + e * 2.6;                 // spaghettification toward the hole
+        const dir = ang * 180 / Math.PI;
+        it.el.style.transform =
+          "translate(" + tx.toFixed(1) + "px," + ty.toFixed(1) + "px) " +
+          "rotate(" + (e * it.rot).toFixed(1) + "deg) " +
+          "rotate(" + dir.toFixed(1) + "deg) scale(" + (stretch * sc).toFixed(3) + "," + sc.toFixed(3) + ") rotate(" + (-dir).toFixed(1) + "deg)";
+        it.el.style.opacity = (1 - Math.pow(p, 5)).toFixed(3);
+      }
+
+      if (alive > 0) requestAnimationFrame(frame);
+      else {
+        ctx.clearRect(0, 0, W, H);
+        bh.classList.add("ready");      // click the black hole to start over
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  bh.addEventListener("click", () => { if (bh.classList.contains("ready")) location.reload(); });
+
+  /* ---------- No => plays your own video ---------- */
+  const overlay = document.getElementById("rick");
+  const clip = document.getElementById("clip");
+  no.addEventListener("click", () => {
+    if (going) return;
+    overlay.classList.add("show");
+    clip.innerHTML = "";
+    VIDEO_FILES.forEach(f => {
+      const src = document.createElement("source");
+      src.src = f;
+      const ext = f.split(".").pop().toLowerCase();
+      const types = { webm: "video/webm", mp4: "video/mp4", mov: "video/mp4", ogv: "video/ogg" };
+      if (types[ext]) src.type = types[ext];
+      clip.appendChild(src);
+    });
+    clip.load();
+    const p = clip.play();
+    if (p && p.catch) {
+      // if the browser blocks autoplay with sound, start muted instead
+      p.catch(() => { clip.muted = true; clip.play().catch(() => {}); });
+    }
+  });
+})();
+</script>
+</body>
+</html>
